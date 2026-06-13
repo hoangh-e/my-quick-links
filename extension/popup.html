@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Quick Links</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <div class="popup-header">
+    <span class="popup-title">My Quick Links</span>
+    <button class="icon-btn" id="refresh-btn" title="Làm mới dữ liệu">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0
+                 l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7
+                 l3.181 3.182m0-4.991v4.99"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="loading" class="popup-state">Đang tải…</div>
+  <div id="error"   class="popup-state popup-error" hidden></div>
+  <div id="content" hidden></div>
+  <div id="cache-notice" class="cache-notice" hidden>Đang hiển thị dữ liệu từ cache</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-14",
+  "shortcuts": [
+    {
+      "id": "practice-tests",
+      "title": "Certification Practice Tests",
+      "description": "Web luyện đề chứng chỉ, hỗ trợ fixed tests và custom Q-A import.",
+      "url": "https://hoangh-e.github.io/practice-tests/",
+      "repoUrl": "https://github.com/hoangh-e/practice-tests",
+      "icon": "assets/icons/practice-tests.png",
+      "group": "Learning",
+      "enabled": true,
+      "order": 1
+    },
+    {
+      "id": "msft-cert-bxh",
+      "title": "BXH Độ Khó MS Certifications",
+      "description": "Bảng xếp hạng độ khó các chứng chỉ Microsoft.",
+      "url": "https://hoangh-e.github.io/msft-cert-bxh/",
+      "repoUrl": "https://github.com/hoangh-e/msft-cert-bxh",
+      "icon": "assets/icons/msft-cert-bxh.png",
+      "group": "Learning",
+      "enabled": true,
+      "order": 2
+    }
+  ]
+}

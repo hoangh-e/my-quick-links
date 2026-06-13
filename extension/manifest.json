@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "My Quick Links",
+  "version": "1.0.0",
+  "description": "Quick access to your personal shortcuts from any page.",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["https://hoangh-e.github.io/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "My Quick Links"
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; connect-src https://hoangh-e.github.io; img-src 'self' https://hoangh-e.github.io data:;"
+  }
+}
