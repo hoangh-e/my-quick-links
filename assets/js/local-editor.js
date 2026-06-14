@@ -7,6 +7,7 @@ const state = {
   data:       null,   // parsed JSON object
   fileHandle: null,   // FileSystemFileHandle if File Access API used
   lastHandle: null,   // stored handle from previous session (needs permission)
+  history:    [],     // cached from data/history.json
   dirty:      false,
   editingId:  null,
   isNew:      false,
@@ -14,19 +15,33 @@ const state = {
 
 const HAS_FILE_ACCESS = 'showOpenFilePicker' in window;
 
-// ── Path History (localStorage) ──────────────────────────────
+// ── History (data/history.json) ──────────────────────────────
 
-const HISTORY_KEY = 'quick-links-path-history';
-
-function getPathHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
-  catch { return []; }
+async function readHistory() {
+  try {
+    const res = await fetch('./data/history.json');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.history) ? data.history : [];
+  } catch { return []; }
 }
 
-function addPathToHistory(name) {
-  const hist = getPathHistory().filter(h => h.name !== name);
+async function writeHistory(entries) {
+  const handle = await restoreHandle('history-file');
+  if (!handle) return;
+  try {
+    const w = await handle.createWritable();
+    await w.write(JSON.stringify({ history: entries }, null, 2));
+    await w.close();
+  } catch { /* ignore */ }
+}
+
+async function addToHistory(name) {
+  const hist = (await readHistory()).filter(h => h.name !== name);
   hist.unshift({ name, openedAt: new Date().toISOString() });
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(hist.slice(0, 10)));
+  const trimmed = hist.slice(0, 10);
+  state.history = trimmed;
+  await writeHistory(trimmed);
 }
 
 // ── Handle Persistence (IndexedDB) ───────────────────────────
@@ -40,24 +55,40 @@ async function getDB() {
   });
 }
 
-async function persistHandle(handle) {
+async function persistHandle(handle, key = 'last') {
   try {
     const db = await getDB();
     const tx = db.transaction('handles', 'readwrite');
-    tx.objectStore('handles').put(handle, 'last');
+    tx.objectStore('handles').put(handle, key);
   } catch { /* ignore */ }
 }
 
-async function restoreHandle() {
+async function restoreHandle(key = 'last') {
   try {
     const db = await getDB();
     const tx = db.transaction('handles', 'readonly');
-    const req = tx.objectStore('handles').get('last');
+    const req = tx.objectStore('handles').get(key);
     return await new Promise((res, rej) => {
       req.onsuccess = () => res(req.result);
       req.onerror   = () => rej(req.error);
     });
   } catch { return null; }
+}
+
+async function setupHistoryFile() {
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+    });
+    if (handle.name !== 'history.json') {
+      showToast('Vui lòng chọn đúng file history.json');
+      return;
+    }
+    await persistHandle(handle, 'history-file');
+    showToast('Đã liên kết history.json');
+  } catch (err) {
+    if (err.name !== 'AbortError') showToast('Lỗi: ' + err.message);
+  }
 }
 
 // ── Utilities ───────────────────────────────────────────────
@@ -123,7 +154,7 @@ async function openFile() {
     });
     await loadFromHandle(handle);
     await persistHandle(handle);
-    addPathToHistory(handle.name);
+    await addToHistory(handle.name);
     showToast('Đã mở: ' + handle.name);
   } catch (err) {
     if (err.name !== 'AbortError') showToast('Lỗi mở file: ' + err.message);
@@ -136,7 +167,7 @@ async function reopenLast() {
     await state.lastHandle.requestPermission({ mode: 'readwrite' });
     await loadFromHandle(state.lastHandle);
     await persistHandle(state.lastHandle);
-    addPathToHistory(state.lastHandle.name);
+    await addToHistory(state.lastHandle.name);
     showToast('Đã mở lại: ' + state.fileHandle.name);
   } catch (err) {
     if (err.name !== 'AbortError') showToast('Không thể mở lại: ' + err.message);
@@ -145,22 +176,13 @@ async function reopenLast() {
 
 async function tryReopenLast() {
   if (!HAS_FILE_ACCESS) return;
-  const handle = await restoreHandle();
+  state.history = await readHistory();
+  const last = state.history[0];
+  if (!last) return;
+  const handle = await restoreHandle('last');
   if (!handle) return;
-  try {
-    const perm = await handle.queryPermission({ mode: 'readwrite' });
-    if (perm === 'granted') {
-      await loadFromHandle(handle);
-      addPathToHistory(handle.name);
-      showToast('Đã tự mở lại: ' + handle.name);
-    } else {
-      state.lastHandle = handle;
-      renderAll();
-    }
-  } catch {
-    state.lastHandle = handle;
-    renderAll();
-  }
+  state.lastHandle = handle;
+  renderAll();
 }
 
 function importFile() {
@@ -401,8 +423,7 @@ function renderPanel() {
 }
 
 function buildWelcome() {
-  const hist = getPathHistory();
-  const last = hist[0];
+  const last = state.history[0];
 
   return `
     <div class="editor-welcome">
@@ -414,21 +435,21 @@ function buildWelcome() {
       </svg>
       <h2>Quick Links Editor</h2>
 
-      ${last && state.lastHandle ? `
+      ${last ? `
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:10px 14px;
                     background:var(--bg-hover);border-radius:8px;font-size:13px;">
           <span style="color:var(--text-muted);">Gần đây:</span>
           <strong>${escapeHtml(last.name)}</strong>
-          <button class="btn btn-primary btn-sm" onclick="reopenLast()" style="margin-left:auto;">Mở lại</button>
-        </div>` : last ? `
-        <p style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">
-          Gần đây: <strong>${escapeHtml(last.name)}</strong>
-        </p>` : ''}
+          ${state.lastHandle
+            ? `<button class="btn btn-primary btn-sm" onclick="reopenLast()" style="margin-left:auto;">Cấp quyền & Mở</button>`
+            : ''}
+        </div>` : ''}
 
       <p>Mở file <code>data/shortcuts.json</code> để bắt đầu chỉnh sửa shortcuts.</p>
       <div class="welcome-actions">
         ${HAS_FILE_ACCESS ? `<button class="btn btn-primary" onclick="openFile()">Mở shortcuts.json</button>` : ''}
         <button class="btn" onclick="importFile()">Import JSON</button>
+        ${HAS_FILE_ACCESS ? `<button class="btn btn-sm" onclick="setupHistoryFile()" title="Liên kết history.json để ghi lịch sử tự động">⚙ History</button>` : ''}
       </div>
       ${!HAS_FILE_ACCESS
         ? '<p style="font-size:11px;color:var(--text-muted);">Browser không hỗ trợ File System API. Dùng Import/Export.</p>'
